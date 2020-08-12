@@ -109,11 +109,7 @@ pbkdf2(MacFunc, Password, Salt, Iterations, BlockIndex, Iteration, Prev, Acc) ->
 	pbkdf2(MacFunc, Password, Salt, Iterations, BlockIndex, Iteration + 1, Next, crypto:exor(Next, Acc)).
 
 resolve_mac_func({hmac, DigestFunc}) ->
-	fun(Key, Data) ->
-		HMAC = crypto:hmac_init(DigestFunc, Key),
-		HMAC1 = crypto:hmac_update(HMAC, Data),
-		crypto:hmac_final(HMAC1)
-	end;
+    fun(Key, Data) -> mac_calc_fun(DigestFunc, Key, Data) end;
 
 resolve_mac_func(MacFunc) when is_function(MacFunc) ->
 	MacFunc;
@@ -126,6 +122,26 @@ resolve_mac_func(sha224) -> resolve_mac_func({hmac, sha224});
 resolve_mac_func(sha256) -> resolve_mac_func({hmac, sha256});
 resolve_mac_func(sha384) -> resolve_mac_func({hmac, sha384});
 resolve_mac_func(sha512) -> resolve_mac_func({hmac, sha512}).
+
+%% OTP 21+
+-ifdef(OTP_RELEASE).
+-if(?OTP_RELEASE >= 23).
+mac_calc_fun(DigestFunc, Key, Data) ->
+    HMAC = crypto:mac_init(hmac, DigestFunc, Key),
+    HMAC1 = crypto:mac_update(HMAC, Data),
+    crypto:mac_final(HMAC1).
+-else.
+mac_calc_fun(DigestFunc, Key, Data) ->
+    HMAC = crypto:hmac_init(DigestFunc, Key),
+    HMAC1 = crypto:hmac_update(HMAC, Data),
+    crypto:hmac_final(HMAC1).
+-endif.
+-else.  % < OTP 21
+mac_calc_fun(DigestFunc, Key, Data) ->
+    HMAC = crypto:hmac_init(DigestFunc, Key),
+    HMAC1 = crypto:hmac_update(HMAC, Data),
+    crypto:hmac_final(HMAC1).
+-endif.
 
 %% Compare two strings or binaries for equality without short-circuits to avoid timing attacks.
 
@@ -155,3 +171,4 @@ to_hex_digit(N) when N < 10 ->
 	$0 + N;
 to_hex_digit(N) ->
 	$a + N - 10.
+

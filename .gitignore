@@ -8,3 +8,8 @@ rel/example_project
 .concrete/DEV_MODE
 .rebar
 ebin
+.rebar3/
+_build/
+rebar.lock
+rebar3.crashdump
+*.swp

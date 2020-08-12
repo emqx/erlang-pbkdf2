@@ -1,13 +1,13 @@
 all: compile
 
 get-deps:
-	rebar get-deps
+	rebar3 get-deps
 
 compile:
-	rebar compile
+	rebar3 compile
 
 eunit:
-	rebar eunit
+	rebar3 eunit
 
 clean:
-	rebar clean
+	rebar3 clean
