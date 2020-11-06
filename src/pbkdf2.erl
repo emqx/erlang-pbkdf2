@@ -54,7 +54,7 @@ pbkdf2(MacFunc, Password, Salt, Iterations, DerivedLength) ->
 	{ok, Bin}.
 
 -spec(to_hex(Data) -> HexData when
-    Data    :: iolist(),
+    Data    :: binary() | [byte()],
 	HexData :: binary() | hex_list()).
 to_hex(<<>>) ->
 	<<>>;
@@ -79,7 +79,7 @@ to_hex([Char | Rest]) ->
 	Iterations    :: integer(),
 	DerivedLength :: integer(),
 	BlockIndex    :: integer(),
-	Acc           :: iolist(),
+	Acc           :: iodata(),
 	Key           :: binary()).
 pbkdf2(MacFunc, Password, Salt, Iterations, DerivedLength, BlockIndex, Acc) ->
 	case iolist_size(Acc) > DerivedLength of
