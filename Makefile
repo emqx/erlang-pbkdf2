@@ -11,3 +11,7 @@ eunit:
 
 clean:
 	rebar3 clean
+
+hex-publish:
+	rebar3 hex publish --repo=hexpm
+

@@ -4,5 +4,8 @@
     {registered, []},
     {applications, [kernel, stdlib]},
     {modules, [pbkdf2]},
-    {env, []}
+    {env, []},
+    {modules, []},
+    {licenses, ["Apache-2.0"]},
+    {pkg_name, erlang_pbkdf2}
 ]}.
