@@ -19,8 +19,6 @@
 
 -type(digest_func_info() :: md4 | md5 | ripemd160 | sha | sha224 | sha256 | sha384 | sha512).
 
--type(mac_func_info() :: {hmac, digest_func_info()} | digest_func_info()).
-
 -define(MAX_DERIVED_KEY_LENGTH, (1 bsl 32 - 1)).
 
 %%--------------------------------------------------------------------
@@ -28,7 +26,7 @@
 %%--------------------------------------------------------------------
 
 -spec(pbkdf2(MacFunc, Password, Salt, Iterations) -> {ok, Key} | {error, derived_key_too_long} when
-    MacFunc    :: mac_func_info(),
+    MacFunc    :: digest_func_info(),
     Password   :: binary(),
     Salt       :: binary(),
     Iterations :: integer(),
@@ -40,7 +38,7 @@ pbkdf2(MacFunc, Password, Salt, Iterations) ->
 	{ok, Bin}.
 
 -spec(pbkdf2(MacFunc, Password, Salt, Iterations, DerivedLength) -> {ok, Key} | {error, derived_key_too_long} when
-    MacFunc       :: mac_func_info(),
+    MacFunc       :: digest_func_info(),
     Password      :: binary(),
     Salt          :: binary(),
     Iterations    :: integer(),
@@ -56,17 +54,10 @@ pbkdf2(MacFunc, Password, Salt, Iterations, DerivedLength) ->
 -spec(to_hex(Data) -> HexData when
     Data    :: binary() | [byte()],
 	HexData :: binary() | hex_list()).
-to_hex(<<>>) ->
-	<<>>;
-to_hex(<<Char:8/integer, Rest/binary>>) ->
-	CharHex1 = to_hex_digit(Char div 16),
-	CharHex2 = to_hex_digit(Char rem 16),
-	RestHex = to_hex(Rest),
-	<<CharHex1, CharHex2, RestHex/binary>>;
-to_hex([]) ->
-	[];
-to_hex([Char | Rest]) ->
-	[to_hex_digit(Char div 16), to_hex_digit(Char rem 16) | to_hex(Rest)].
+to_hex(Data) when is_binary(Data) ->
+    string:lowercase(binary:encode_hex(Data));
+to_hex(Data) when is_list(Data) ->
+    binary_to_list(string:lowercase(binary:encode_hex(list_to_binary(Data)))).
 
 %%--------------------------------------------------------------------
 %% Internal Functions
@@ -123,20 +114,12 @@ resolve_mac_func(sha256) -> resolve_mac_func({hmac, sha256});
 resolve_mac_func(sha384) -> resolve_mac_func({hmac, sha384});
 resolve_mac_func(sha512) -> resolve_mac_func({hmac, sha512}).
 
-%% OTP 21+
--ifdef(OTP_RELEASE).
 -if(?OTP_RELEASE >= 23).
 mac_calc_fun(DigestFunc, Key, Data) ->
     HMAC = crypto:mac_init(hmac, DigestFunc, Key),
     HMAC1 = crypto:mac_update(HMAC, Data),
     crypto:mac_final(HMAC1).
 -else.
-mac_calc_fun(DigestFunc, Key, Data) ->
-    HMAC = crypto:hmac_init(DigestFunc, Key),
-    HMAC1 = crypto:hmac_update(HMAC, Data),
-    crypto:hmac_final(HMAC1).
--endif.
--else.  % < OTP 21
 mac_calc_fun(DigestFunc, Key, Data) ->
     HMAC = crypto:hmac_init(DigestFunc, Key),
     HMAC1 = crypto:hmac_update(HMAC, Data),
@@ -165,10 +148,3 @@ compare_secure([X|RestX], [Y|RestY], Result) ->
 	compare_secure(RestX, RestY, (X bxor Y) bor Result);
 compare_secure([], [], Result) ->
 	Result == 0.
-
--spec(to_hex_digit(Nyble :: 0 .. 15) -> hex_char()).
-to_hex_digit(N) when N < 10 ->
-	$0 + N;
-to_hex_digit(N) ->
-	$a + N - 10.
-
