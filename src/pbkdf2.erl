@@ -25,28 +25,44 @@
 %% Public API
 %%--------------------------------------------------------------------
 
--spec(pbkdf2(MacFunc, Password, Salt, Iterations) -> {ok, Key} | {error, derived_key_too_long} when
+-spec(pbkdf2(MacFunc, Password, Salt, Iterations) -> {ok, Key} when
     MacFunc    :: digest_func_info(),
     Password   :: binary(),
     Salt       :: binary(),
     Iterations :: integer(),
     Key        :: binary()).
 pbkdf2(MacFunc, Password, Salt, Iterations) ->
-	MacFunc1 = resolve_mac_func(MacFunc),
-	DerivedLength = byte_size(MacFunc1(<<"test key">>, <<"test data">>)),
-	Bin = pbkdf2(MacFunc1, Password, Salt, Iterations, DerivedLength, 1, []),
-	{ok, Bin}.
+	DerivedLength = dk_length(MacFunc),
+    pbkdf2(MacFunc, Password, Salt, Iterations, DerivedLength).
 
--spec(pbkdf2(MacFunc, Password, Salt, Iterations, DerivedLength) -> {ok, Key} | {error, derived_key_too_long} when
+-spec(pbkdf2(MacFunc, Password, Salt, Iterations, DkLength) -> {ok, Key} | {error, derived_key_too_long} when
     MacFunc       :: digest_func_info(),
     Password      :: binary(),
     Salt          :: binary(),
     Iterations    :: integer(),
-    DerivedLength :: integer(),
+    DkLength      :: integer(),
     Key           :: binary()).
 pbkdf2(_MacFunc, _Password, _Salt, _Iterations, DerivedLength) when DerivedLength > ?MAX_DERIVED_KEY_LENGTH ->
-	{error, derived_key_too_long};
-pbkdf2(MacFunc, Password, Salt, Iterations, DerivedLength) ->
+    {error, derived_key_too_long};
+pbkdf2(md4 = F, Password, Salt, Iterations, DkLength) ->
+    pbkdf2_loop(F, Password, Salt, Iterations, DkLength);
+pbkdf2(md5 = F, Password, Salt, Iterations, DkLength) ->
+    pbkdf2_loop(F, Password, Salt, Iterations, DkLength);
+pbkdf2(ripemd160 = F, Password, Salt, Iterations, DkLength) ->
+    pbkdf2_loop(F, Password, Salt, Iterations, DkLength);
+pbkdf2(DigestFunc, Password, Salt, Iterations, DkLength) ->
+    pbkdf2_otp(DigestFunc, Password, Salt, Iterations, DkLength).
+
+-if(?OTP_RELEASE >= 25).
+pbkdf2_otp(DigestFunc, Password, Salt, Iterations, DkLength) ->
+    Bin = crypto:pbkdf2_hmac(DigestFunc, Password, Salt, Iterations, DkLength),
+    {ok, Bin}.
+-else.
+pbkdf2_otp(DigestFunc, Password, Salt, Iterations, DkLength) ->
+    pbkdf2_loop(DigestFunc, Password, Salt, Iterations, DkLength).
+-endif.
+
+pbkdf2_loop(MacFunc, Password, Salt, Iterations, DerivedLength) ->
 	MacFunc1 = resolve_mac_func(MacFunc),
 	Bin = pbkdf2(MacFunc1, Password, Salt, Iterations, DerivedLength, 1, []),
 	{ok, Bin}.
@@ -101,7 +117,6 @@ pbkdf2(MacFunc, Password, Salt, Iterations, BlockIndex, Iteration, Prev, Acc) ->
 
 resolve_mac_func({hmac, DigestFunc}) ->
     fun(Key, Data) -> mac_calc_fun(DigestFunc, Key, Data) end;
-
 resolve_mac_func(MacFunc) when is_function(MacFunc) ->
 	MacFunc;
 
@@ -148,3 +163,12 @@ compare_secure([X|RestX], [Y|RestY], Result) ->
 	compare_secure(RestX, RestY, (X bxor Y) bor Result);
 compare_secure([], [], Result) ->
 	Result == 0.
+
+dk_length(md4) -> 16;
+dk_length(md5) -> 16;
+dk_length(ripemd160) -> 20;
+dk_length(sha) -> 20;
+dk_length(sha224) -> 28;
+dk_length(sha256) -> 32;
+dk_length(sha384) -> 48;
+dk_length(sha512) -> 64.
