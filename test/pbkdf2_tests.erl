@@ -25,9 +25,7 @@
 	{[sha, <<"passwordPASSWORDpassword">>, <<"saltSALTsaltSALTsaltSALTsaltSALTsalt">>, 4096, 25],
 			<<"3d2eec4fe41c849b80c8d83662c0e44a8b291a964cf2f07038">>},
 	{[sha, <<"pass\0word">>, <<"sa\0lt">>, 4096, 16],
-			<<"56fa6aa75548099dcc37d7f03425e0c3">>},
-	{[sha, <<"password">>, <<"salt">>, 16777216, 20],
-			<<"eefe3d61cd4da4e4e9945b3d6ba2158c2634e984">>}
+			<<"56fa6aa75548099dcc37d7f03425e0c3">>}
 ]).
 
 

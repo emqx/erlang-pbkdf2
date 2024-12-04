@@ -6,8 +6,11 @@ get-deps:
 compile:
 	rebar3 compile
 
+dialyzer:
+	rebar3 dialyzer
+
 eunit:
-	rebar3 eunit
+	rebar3 eunit -v -c
 
 clean:
 	rebar3 clean

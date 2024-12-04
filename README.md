@@ -1,8 +1,6 @@
 pbkdf2
 ======
 
-NOTE: This repo is deprecated! Starting from Erlang/OTP 24, there is [crypto:pbkdf2_hmac/5](https://www.erlang.org/docs/24/man/crypto#pbkdf2_hmac-5)
-
 A [PBKDF2](http://en.wikipedia.org/wiki/PBKDF2) implementation for [Erlang](http://www.erlang.org) extracted from [Apache CouchDB](http://couchdb.apache.org).
 
 Building

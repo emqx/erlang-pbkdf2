@@ -19,36 +19,50 @@
 
 -type(digest_func_info() :: md4 | md5 | ripemd160 | sha | sha224 | sha256 | sha384 | sha512).
 
--type(mac_func_info() :: {hmac, digest_func_info()} | digest_func_info()).
-
 -define(MAX_DERIVED_KEY_LENGTH, (1 bsl 32 - 1)).
 
 %%--------------------------------------------------------------------
 %% Public API
 %%--------------------------------------------------------------------
 
--spec(pbkdf2(MacFunc, Password, Salt, Iterations) -> {ok, Key} | {error, derived_key_too_long} when
-    MacFunc    :: mac_func_info(),
+-spec(pbkdf2(MacFunc, Password, Salt, Iterations) -> {ok, Key} when
+    MacFunc    :: digest_func_info(),
     Password   :: binary(),
     Salt       :: binary(),
     Iterations :: integer(),
     Key        :: binary()).
 pbkdf2(MacFunc, Password, Salt, Iterations) ->
-	MacFunc1 = resolve_mac_func(MacFunc),
-	DerivedLength = byte_size(MacFunc1(<<"test key">>, <<"test data">>)),
-	Bin = pbkdf2(MacFunc1, Password, Salt, Iterations, DerivedLength, 1, []),
-	{ok, Bin}.
+	DerivedLength = dk_length(MacFunc),
+    pbkdf2(MacFunc, Password, Salt, Iterations, DerivedLength).
 
--spec(pbkdf2(MacFunc, Password, Salt, Iterations, DerivedLength) -> {ok, Key} | {error, derived_key_too_long} when
-    MacFunc       :: mac_func_info(),
+-spec(pbkdf2(MacFunc, Password, Salt, Iterations, DkLength) -> {ok, Key} | {error, derived_key_too_long} when
+    MacFunc       :: digest_func_info(),
     Password      :: binary(),
     Salt          :: binary(),
     Iterations    :: integer(),
-    DerivedLength :: integer(),
+    DkLength      :: integer(),
     Key           :: binary()).
 pbkdf2(_MacFunc, _Password, _Salt, _Iterations, DerivedLength) when DerivedLength > ?MAX_DERIVED_KEY_LENGTH ->
-	{error, derived_key_too_long};
-pbkdf2(MacFunc, Password, Salt, Iterations, DerivedLength) ->
+    {error, derived_key_too_long};
+pbkdf2(md4 = F, Password, Salt, Iterations, DkLength) ->
+    pbkdf2_loop(F, Password, Salt, Iterations, DkLength);
+pbkdf2(md5 = F, Password, Salt, Iterations, DkLength) ->
+    pbkdf2_loop(F, Password, Salt, Iterations, DkLength);
+pbkdf2(ripemd160 = F, Password, Salt, Iterations, DkLength) ->
+    pbkdf2_loop(F, Password, Salt, Iterations, DkLength);
+pbkdf2(DigestFunc, Password, Salt, Iterations, DkLength) ->
+    pbkdf2_otp(DigestFunc, Password, Salt, Iterations, DkLength).
+
+-if(?OTP_RELEASE >= 25).
+pbkdf2_otp(DigestFunc, Password, Salt, Iterations, DkLength) ->
+    Bin = crypto:pbkdf2_hmac(DigestFunc, Password, Salt, Iterations, DkLength),
+    {ok, Bin}.
+-else.
+pbkdf2_otp(DigestFunc, Password, Salt, Iterations, DkLength) ->
+    pbkdf2_loop(DigestFunc, Password, Salt, Iterations, DkLength).
+-endif.
+
+pbkdf2_loop(MacFunc, Password, Salt, Iterations, DerivedLength) ->
 	MacFunc1 = resolve_mac_func(MacFunc),
 	Bin = pbkdf2(MacFunc1, Password, Salt, Iterations, DerivedLength, 1, []),
 	{ok, Bin}.
@@ -56,17 +70,10 @@ pbkdf2(MacFunc, Password, Salt, Iterations, DerivedLength) ->
 -spec(to_hex(Data) -> HexData when
     Data    :: binary() | [byte()],
 	HexData :: binary() | hex_list()).
-to_hex(<<>>) ->
-	<<>>;
-to_hex(<<Char:8/integer, Rest/binary>>) ->
-	CharHex1 = to_hex_digit(Char div 16),
-	CharHex2 = to_hex_digit(Char rem 16),
-	RestHex = to_hex(Rest),
-	<<CharHex1, CharHex2, RestHex/binary>>;
-to_hex([]) ->
-	[];
-to_hex([Char | Rest]) ->
-	[to_hex_digit(Char div 16), to_hex_digit(Char rem 16) | to_hex(Rest)].
+to_hex(Data) when is_binary(Data) ->
+    string:lowercase(binary:encode_hex(Data));
+to_hex(Data) when is_list(Data) ->
+    binary_to_list(string:lowercase(binary:encode_hex(list_to_binary(Data)))).
 
 %%--------------------------------------------------------------------
 %% Internal Functions
@@ -110,7 +117,6 @@ pbkdf2(MacFunc, Password, Salt, Iterations, BlockIndex, Iteration, Prev, Acc) ->
 
 resolve_mac_func({hmac, DigestFunc}) ->
     fun(Key, Data) -> mac_calc_fun(DigestFunc, Key, Data) end;
-
 resolve_mac_func(MacFunc) when is_function(MacFunc) ->
 	MacFunc;
 
@@ -123,20 +129,12 @@ resolve_mac_func(sha256) -> resolve_mac_func({hmac, sha256});
 resolve_mac_func(sha384) -> resolve_mac_func({hmac, sha384});
 resolve_mac_func(sha512) -> resolve_mac_func({hmac, sha512}).
 
-%% OTP 21+
--ifdef(OTP_RELEASE).
 -if(?OTP_RELEASE >= 23).
 mac_calc_fun(DigestFunc, Key, Data) ->
     HMAC = crypto:mac_init(hmac, DigestFunc, Key),
     HMAC1 = crypto:mac_update(HMAC, Data),
     crypto:mac_final(HMAC1).
 -else.
-mac_calc_fun(DigestFunc, Key, Data) ->
-    HMAC = crypto:hmac_init(DigestFunc, Key),
-    HMAC1 = crypto:hmac_update(HMAC, Data),
-    crypto:hmac_final(HMAC1).
--endif.
--else.  % < OTP 21
 mac_calc_fun(DigestFunc, Key, Data) ->
     HMAC = crypto:hmac_init(DigestFunc, Key),
     HMAC1 = crypto:hmac_update(HMAC, Data),
@@ -166,9 +164,11 @@ compare_secure([X|RestX], [Y|RestY], Result) ->
 compare_secure([], [], Result) ->
 	Result == 0.
 
--spec(to_hex_digit(Nyble :: 0 .. 15) -> hex_char()).
-to_hex_digit(N) when N < 10 ->
-	$0 + N;
-to_hex_digit(N) ->
-	$a + N - 10.
-
+dk_length(md4) -> 16;
+dk_length(md5) -> 16;
+dk_length(ripemd160) -> 20;
+dk_length(sha) -> 20;
+dk_length(sha224) -> 28;
+dk_length(sha256) -> 32;
+dk_length(sha384) -> 48;
+dk_length(sha512) -> 64.
